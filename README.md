@@ -2,6 +2,12 @@
 
 An R-based analysis pipeline for historical Twitter data collection, text preprocessing, statistical analysis, and Social Network Analysis (SNA) focusing on the Turkish Twitter term **"sessiz istila"** (Silent Invasion).
 
+## Repository Structure
+
+- `TwitterData_ScrapingAnalysis.Rmd`: Main R script handling historical Twitter data scraping (`academictwitteR`), text preprocessing, descriptive statistics, word frequencies, and network analysis (SNA).
+- `Emoji_Translation.Rmd`: R script for emoji extraction, normalization of text and emojis, and translation across the collected tweets.
+- `Emotion_Recognition_for_SessizIstila.ipynb`: Jupyter notebook for applying emotion recognition models to the cleaned tweet dataset.
+
 ## Project Overview
 
 This repository contains the R scripts and code workflows used to scrape, process, and analyze historical Twitter data between **June 1, 2021** and **December 31, 2022**. The dataset captures the origin, spread, temporal spikes, and network characteristics of the phrase *"sessiz istila"* on Twitter prior to the Twitter API v2 access model changes.
