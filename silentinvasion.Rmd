@@ -1,0 +1,1151 @@
+---
+title: "sessiz istila"
+author: "Darmawan Wicaksono"
+date: "2022-12-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+From: https://www.frontiersin.org/articles/10.3389/fpsyg.2019.00781/full
+Ekman proposed seven basic emotions: fear, anger, joy, sad, contempt, disgust, and surprise; but he changed to six basic emotions: fear, anger, joy, sadness, disgust, and surprise. However, a recent study found that disgust and anger shared similar wrinkled nose, and fear and surprise shared raised eyebrows (Jack et al., 2014). The differences between anger and disgust and the differences between fear and surprise, are thought to have developed later for social functions and not for survival per se (Mansourian et al., 2016). As such, Jack et al. (2014) proposed that we humans have four basic emotions: fear, anger, joy, and sad.
+
+Conclusion: 
+Four basic emotions: fear, anger, joy, and sad
+
+## R Markdown
+
+## Get all tweets from 2021 to 2022, from first time "sessiz istila" found on twitter until Dec 2022. Data taken at Jan 26, 2022
+
+```{r}
+library(academictwitteR)
+silentinvasiontweet = get_all_tweets(
+  query = "sessiz istila",
+  exact_phrase = T,
+    start_tweets = "2021-06-01T00:00:00Z",
+    end_tweets = "2022-12-31T00:00:00Z",
+    lang = "tr",
+    file = "silentinvasiontweetfirst",
+    data_path = "/Users/darmawan/Documents/rstudio/silentinvasion/json2",
+    n=Inf
+  )
+```
+
+```{r}
+library(writexl)
+tweets <- bind_tweets(data_path = "/Users/darmawan/Documents/rstudio/silentinvasion/json2")
+write_xlsx(tweets, "/Users/darmawan/Documents/rstudio/silentinvasion/json2/silentinvasiontweethistory.xlsx")
+```
+
+```{r}
+# Saving data frame:
+save(silentinvasiontweet, file = "silentinvasiontweethistory.RData")
+```
+
+```{r}
+# Load Rdata:
+load("silentinvasiontweethistory.RData")
+```
+
+```{r}
+# Saving text tweet into new dataframe
+tweettext <- subset(silentinvasiontweet, select=c("id", "text"))
+```
+
+
+```{r}
+# Saving data frame to *.csv file:
+write.csv(tweettext, file = "tweettext.csv", row.names = FALSE)
+```
+
+
+```{r}
+# Subset date and tweets text
+silentinvasiontest <- subset(silentinvasiontweet, select = c("created_at","text"))
+```
+
+
+```{r}
+# Saving data frame to *.csv file:
+write.csv(silentinvasiontest, file = "silentinvasiontest.csv", row.names = FALSE)
+```
+
+
+```{r}
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2021-06-08")
+```
+
+First tweet who contained "sessiz istila" keyword are @KaracasuHande tweet (https://twitter.com/KaracasuHande/status/1402203834668273665) in June 8, 2021, she's quoted a tweet from @Haberinizcomtr (https://twitter.com/Haberinizcomtr/status/1402203342445613063) account, who also quote a web link from Haberiniz news site (https://haberiniz.com.tr/turk-milliyetciligi/adana-ayyildiz-hareketi-lideri-umit-ozdaga-suriyelilerden-dert-yandi-08062021). @KaracasuHande tweet retweeted by 3 account at that date. 
+
+
+## Subsetting get_all_tweet dataframe
+
+```{r}
+silentinvasiontest <- read.csv("silentinvasiontest.csv")
+```
+
+
+```{r}
+# Load the utils package
+library(utils)
+
+# Convert the date column to the ISO 8601 format
+silentinvasiontest$date <- strptime(silentinvasiontest$created_at, format = "%Y-%m-%dT%H:%M:%S.%OSZ")
+
+# Extract the days from each date
+silentinvasiontest$date <- format(silentinvasiontest$date, "%Y-%m-%d")
+```
+
+
+```{r}
+library(dplyr)
+
+#group the data by date and count the number of tweets per date
+datasilentinvasiontest <- silentinvasiontest %>% group_by(date) %>% summarize(tweet_count = n())
+```
+
+
+```{r}
+# Create year column
+library(lubridate)
+
+datasilentinvasiontest$year <- year(datasilentinvasiontest$date)
+```
+
+
+```{r}
+# Create month collumn
+library(lubridate)
+
+datasilentinvasiontest$month <- month(datasilentinvasiontest$date)
+```
+
+
+
+```{r}
+# Saving data frame:
+save(datasilentinvasiontest, file = "silentinvasion.RData")
+
+# Saving data frame to *.csv file:
+write.csv(datasilentinvasiontest, file = "silentinvasion.csv", row.names = FALSE)
+
+```
+
+
+
+## Calculate tweet count data
+
+```{r}
+# Read *.csv file:
+silentinvasion <- read.csv("silentinvasion.csv")
+```
+
+```{r}
+sum(silentinvasion$tweet_count)
+```
+
+From Twitter historical data using keyword "sessiz istila" from June 1, 2021 to December 30, 2022. We got 47,024 tweets. 
+
+
+```{r}
+# Sum tweet count for 2021
+year_2021_tweet_count = sum(silentinvasion$tweet_count[(as.Date(silentinvasion$date, "%Y-%m-%d") >= as.Date("2021-01-01")) & (as.Date(silentinvasion$date, "%Y-%m-%d") <= as.Date("2021-12-31"))])
+
+# Sum tweet count for 2022
+year_2022_tweet_count = sum(silentinvasion$tweet_count[(as.Date(silentinvasion$date, "%Y-%m-%d") >= as.Date("2022-01-01")) & (as.Date(silentinvasion$date, "%Y-%m-%d") <= as.Date("2022-12-31"))])
+
+```
+
+
+```{r}
+sum(year_2021_tweet_count)
+```
+
+In 2021 it self, from June 1, 2021 to December 30, 2021, we got 1,502 tweets.
+
+
+```{r}
+sum(year_2022_tweet_count)
+```
+
+In 2022 it self, from January 1, 2022 to December 30, 2022, we got 45,522 tweets. A sighnificant increased, more than 30 times since 2021. 
+
+
+```{r}
+# Load the utils package
+#library(utils)
+
+# Convert the date column to the ISO 8601 format
+#silentinvasion$date <- strptime(silentinvasion$start, format = "%Y-%m-%dT%H:%M:%S.%OSZ")
+```
+
+```{r}
+# Extract the days from each date
+#silentinvasion$days <- format(silentinvasion$date, "%Y-%m-%d")
+```
+
+
+```{r}
+# Extract the year from each date
+#library(lubridate)
+#silentinvasion$year <- year(silentinvasion$date)
+```
+
+
+```{r}
+# Check class column
+class(silentinvasion$tweet_count)
+class(silentinvasion$date)
+class(silentinvasion$month)
+class(silentinvasion$year)
+```
+
+```{r}
+# delete empty row from dataframe
+#silentinvasion <- na.omit(silentinvasion)
+```
+
+```{r}
+# Change tweet_count into numeric
+silentinvasion$tweet_count <- as.numeric(silentinvasion$tweet_count)
+
+# Change days into date format
+silentinvasion$date <- as.Date(silentinvasion$date,format="%Y-%m-%d")
+
+# Change month into numeric
+silentinvasion$month <- as.numeric(silentinvasion$month)
+
+# Change year into numeric
+silentinvasion$year <- as.numeric(silentinvasion$year)
+
+```
+
+
+```{r}
+# Check class column
+class(silentinvasion$tweet_count)
+class(silentinvasion$date)
+class(silentinvasion$month)
+class(silentinvasion$year)
+```
+
+
+```{r}
+# Summary of data
+summary(silentinvasion$tweet_count)
+```
+
+
+```{r}
+# Sum the numeric data by Date
+summed_data <- aggregate(silentinvasion$tweet_count, by = list(Date = silentinvasion$date), sum)
+```
+
+
+```{r}
+# Summary of data, per year
+summary(summed_data)
+```
+
+Tweets data from 2021 to 2022, we got the least tweet per day using "sessiz istila" keyword is 1, and the maximum tweets using it is 6,077. Mean is 133.2 and median 13. For the first quartile is 3, and third quartile is 35 tweets.  
+
+
+```{r}
+library(dplyr)
+silentinvasion %>%
+  filter(tweet_count == "1")
+```
+
+There was 51 days has a single tweet contain "sessiz istila" keyword.
+
+
+```{r}
+library(dplyr)
+silentinvasion %>%
+  filter(tweet_count == "6077")
+```
+
+Highest number of tweet in June 27, 2022, as much as 6,077 tweets in one day. The highest number since 2021 until 2022. 
+
+
+```{r}
+# Calculate 1st Qu. and 3rd Qu.
+q1 <- quantile(summed_data$x, probs = 0.25)
+q3 <- quantile(summed_data$x, probs = 0.75)
+```
+
+
+```{r}
+# Make overall graph from 2021 to 2022
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+df <- data.frame(silentinvasion$tweet_count, silentinvasion$date)
+
+# find the position of the highest value
+max_pos <- which.max(silentinvasion$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", silentinvasion$date[max_pos], "as much as:",  silentinvasion$tweet_count[max_pos], "tweets")
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = df, aes(x = silentinvasion$date, y = silentinvasion$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count from Jun 2021 - Dec 2022") +
+  xlab("Month") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = silentinvasion$date[max_pos], y = silentinvasion$tweet_count[max_pos]),
+            label = label_text, hjust=1.02, col = "blue") +
+scale_x_date(breaks = "1 month", labels = date_format("%b"), minor_breaks = "1 month") +
+  geom_hline(yintercept = q1, color = "blue") +
+  geom_hline(yintercept = q3, color = "red")
+
+```
+
+
+
+## Split the years, 2021 and 2022
+## Year 2021
+
+```{r}
+year_2021_data <- subset(silentinvasion, year == 2021)
+year_2022_data <- subset(silentinvasion, year == 2022)
+```
+
+
+```{r}
+# Sum tweet count for 2021
+year_2021_summed_data <- aggregate(year_2021_data$tweet_count, by = list(Date = year_2021_data$date), sum)
+
+# Sum tweet count for 2022
+year_2022_summed_data <- aggregate(year_2022_data$tweet_count, by = list(Date = year_2022_data$date), sum)
+```
+
+
+```{r}
+# Summary of 2021 data
+summary(year_2021_summed_data)
+```
+
+Tweets data from 2021, we got the least tweet per day using "sessiz istila" keyword is 1, and the maximum tweets using it is 648. Mean is 25.03 and median 2. For the first quartile is 1, and third quartile is 4.25 tweets. Relatively low tweets using "sessiz istila" keyword. We can say that issue not really popular.
+
+
+```{r}
+library(dplyr)
+year_2021_data %>%
+  filter(tweet_count == "1")
+```
+
+There was 26 days has a single tweet contain "sessiz istila" keyword.
+
+
+```{r}
+library(dplyr)
+year_2021_data %>%
+  filter(tweet_count == "648")
+```
+
+Highest number of tweet in July 19, 2021, as much as 648 tweets in one day. The highest number in 2021. 
+
+
+```{r}
+# Calculate mean 2021
+mean_2021 <- mean(year_2021_summed_data$x)
+```
+
+
+```{r}
+# Graph year 2021
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+df <- data.frame(year_2021_data$tweet_count, year_2021_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2021_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2021_data$date[max_pos], "as much as:",  year_2021_data$tweet_count[max_pos], "tweets")
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = df, aes(x = year_2021_data$date, y = year_2021_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("Month, 2021") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = year_2021_data$date[max_pos], y = year_2021_data$tweet_count[max_pos]),
+            label = label_text, hjust=0, col = "blue") +
+scale_x_date(breaks = "1 month", labels = date_format("%b"), minor_breaks = "1 week") +
+  geom_hline(yintercept = mean_2021, color = "red")
+
+```
+
+In 2021, it has 2 peaks of the amount of tweets. First one in 3rd week of July, and 2st week of December.
+
+
+## Year 2021, July
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2021-07-17")
+```
+
+Second pikes of the tweet who contained "sessiz istila" keyword in July 17, 2021. When @aykiricomtr account (https://twitter.com/aykiricomtr/status/1416335549149888515) posted a tweet contain a web link from Aykiri news site (https://www.aykiri.com.tr/sessiz-istila-devam-ediyor-turkiye-ye-giren-kacaklar-tir-kasasinda-nigde-ye-geldi/12969/). @aykiricomtr tweet itself retweeted by 327 account. 
+
+
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2021-07-19")
+```
+
+Peak of the tweet who contained "sessiz istila" keyword in July 19, when @aykiricomtr account (https://twitter.com/aykiricomtr/status/1417070055062392832) posted a tweet contain a web link from Aykiri news site (https://www.aykiri.com.tr/sessiz-istila-devam-ediyor-van-sinirindan-kacak-yollarla-turkiye-ye-giren-binlerce-afgan-yine-goruntulendi/13008/). @aykiricomtr tweet itself retweeted by 638 account. 
+
+
+```{r}
+# Subset dataframe to July 2021
+year_2021_july_data <- subset(silentinvasion, year == 2021 & month == 7)
+```
+
+```{r}
+# Graph July 2021
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+dfmonth <- data.frame(year_2021_july_data$tweet_count, year_2021_july_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2021_july_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2021_july_data$date[max_pos], "as much as:",  year_2021_july_data$tweet_count[max_pos], "tweets")
+
+# Extract the day component from the dates and store it in a new variable
+dfmonth$day <- as.integer(format(dfmonth$year_2021_july_data.date, "%d"))
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = dfmonth, aes(x = year_2021_july_data$date, y = year_2021_july_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("July, 2021") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = year_2021_july_data$date[max_pos], y = year_2021_july_data$tweet_count[max_pos]),
+            label = label_text, hjust=0, col = "blue") +
+  scale_x_date(date_labels = "%d", date_breaks = "1 day")
+
+```
+
+
+## Year 2021, December
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2021-12-03")
+```
+
+Peak of the tweet who contained "sessiz istila" keyword in December 3, when @batuhancolak33 account (https://twitter.com/batuhancolak33/status/1466775042822479880) posted a tweet quoted tweet of @aykiricomtr (https://twitter.com/aykiricomtr/status/1466768076741955585/). @batuhancolak33 tweet itself retweeted by 206 account. 
+
+
+```{r}
+# Subset dataframe to December 2021
+year_2021_december_data <- subset(silentinvasion, year == 2021 & month == 12)
+```
+
+```{r}
+# Graph December 2021
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+dfmonth <- data.frame(year_2021_december_data$tweet_count, year_2021_december_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2021_december_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2021_december_data$date[max_pos], "as much as:",  year_2021_december_data$tweet_count[max_pos], "tweets")
+
+# Extract the day component from the dates and store it in a new variable
+dfmonth$day <- as.integer(format(dfmonth$year_2021_december_data.date, "%d"))
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = dfmonth, aes(x = year_2021_december_data$date, y = year_2021_december_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("December, 2021") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = year_2021_december_data$date[max_pos], y = year_2021_december_data$tweet_count[max_pos]),
+            label = label_text, hjust=0, col = "blue") +
+  scale_x_date(date_labels = "%d", date_breaks = "1 day")
+
+```
+
+
+
+
+## Year 2022
+
+```{r}
+# Summary of 2022 data
+summary(year_2022_summed_data)
+
+```
+
+Tweets data from 2022, we got the least tweet per day using "sessiz istila" keyword is 1, and the maximum tweets using it is 6,077. Mean is 155.4 and median 18. For the first quartile is 6, and third quartile is 46 tweets. Jumped really high.
+
+
+```{r}
+library(dplyr)
+year_2022_data %>%
+  filter(tweet_count == "1")
+```
+
+There was 25 days has a single tweet contain "sessiz istila" keyword.
+
+
+```{r}
+library(dplyr)
+year_2022_data %>%
+  filter(tweet_count == "6077")
+```
+
+Highest number of tweet in Jule 27, 2022, as much as 6,077 tweets in one day. The highest number in 2022. 
+
+
+```{r}
+# Calculate mean 2021
+mean_2022 <- mean(year_2022_summed_data$x)
+```
+
+```{r}
+# Calculate 1st Qu. and 3rd Qu.
+q1 <- quantile(year_2022_summed_data$x, probs = 0.25)
+q3 <- quantile(year_2022_summed_data$x, probs = 0.75)
+```
+
+```{r}
+# Graph year 2022
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+df <- data.frame(year_2022_data$tweet_count, year_2022_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2022_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2022_data$date[max_pos], "as much as:",  year_2022_data$tweet_count[max_pos], "tweets")
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = df, aes(x = year_2022_data$date, y = year_2022_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("Month, 2022") +
+  ylab("Tweet Count") +
+  geom_hline(yintercept = q1, color = "magenta") +
+  geom_hline(yintercept = q3, color = "green") +
+  geom_text(aes(x = year_2022_data$date[max_pos], y = year_2022_data$tweet_count[max_pos]),
+            label = label_text, hjust=0, col = "blue") +
+scale_x_date(breaks = "1 month", labels = date_format("%b"), minor_breaks = "1 week") +
+  geom_hline(yintercept = mean_2022, color = "red")
+
+```
+
+In 2022, it has 3 big spikes. The biggest spike of the tweet that contained the "sessiz istila" keyword was on June 27, 2022, when @Yilmaz_Ozdill account (Özdil, 2022) quoted a tweet containing a tweet from @umitozdag account (Özdağ, 2022). @Yilmaz_Ozdill tweet itself was retweeted by 7699 accounts. The second spike of the tweet was on May 4, 2023, when @umitkocasakal_ account (Kocasakal, 2022) was retweeted by 1021 accounts.
+
+
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2022-06-27")
+```
+
+
+## Year 2022, June
+```{r}
+# Subset dataframe to June 2022
+year_2022_june_data <- subset(silentinvasion, year == 2022 & month == 6)
+```
+
+
+```{r}
+# Graph June 2022
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+dfmonth <- data.frame(year_2022_june_data$tweet_count, year_2022_june_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2022_june_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2022_june_data$date[max_pos], "as much as:",  year_2022_june_data$tweet_count[max_pos], "tweets")
+
+# Extract the day component from the dates and store it in a new variable
+dfmonth$day <- as.integer(format(dfmonth$year_2022_june_data.date, "%d"))
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = dfmonth, aes(x = year_2022_june_data$date, y = year_2022_june_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("June, 2022") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = year_2022_june_data$date[max_pos], y = year_2022_june_data$tweet_count[max_pos]),
+            label = label_text, hjust=1.01, col = "blue") +
+  scale_x_date(date_labels = "%d", date_breaks = "1 day")
+
+```
+
+
+## Year 2022, May
+```{r}
+# Subset dataframe to May 2022
+year_2022_may_data <- subset(silentinvasion, year == 2022 & month == 5)
+```
+
+
+```{r}
+# Graph May 2022
+# First, load the ggplot2 library
+library(ggplot2)
+library(scales)
+
+# Next, create a data frame with the tweet_count and date data
+dfmonth <- data.frame(year_2022_may_data$tweet_count, year_2022_may_data$date)
+
+# find the position of the highest value
+max_pos <- which.max(year_2022_may_data$tweet_count)
+
+# create the label for the text annotation
+label_text <- paste("  Highest tweet on:", year_2022_may_data$date[max_pos], "as much as:",  year_2022_may_data$tweet_count[max_pos], "tweets")
+
+# Extract the day component from the dates and store it in a new variable
+dfmonth$day <- as.integer(format(dfmonth$year_2022_may_data.date, "%d"))
+
+# Then, use ggplot2 to create a line graph with tweet_count on the y-axis and date on the x-axis
+ggplot(data = dfmonth, aes(x = year_2022_may_data$date, y = year_2022_may_data$tweet_count)) + 
+  geom_line() +
+  ggtitle("Tweet Count over Time") +
+  xlab("May, 2022") +
+  ylab("Tweet Count") +
+  geom_text(aes(x = year_2022_may_data$date[max_pos], y = year_2022_may_data$tweet_count[max_pos]),
+            label = label_text, hjust=0.01, col = "blue") +
+  scale_x_date(date_labels = "%d", date_breaks = "1 day")
+
+```
+
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2022-05-04")
+```
+
+```{r}
+# Tweets on the exact date
+library(dplyr)
+silentinvasiontest %>%
+  filter(date == "2022-05-10")
+```
+
+```{r}
+library(dplyr)
+silentinvasiontweet %>%
+  filter(id == "1523876749427236864")
+```
+
+
+
+
+## From tweetext.csv, we copied tweets ID, and download all of the tweets data using NodeXL
+
+```{r}
+# Saving data frame:
+save(tweettext, file = "tweettext.RData")
+
+# Saving data frame into csv file:
+write.csv(tweettext, "tweettext.csv", row.names = FALSE)
+```
+
+
+## From tweets data downloaded using NodeXL (excel format), load excel file into dataframe and subset only tweets text 
+
+```{r}
+# First, install and load the package
+library(readxl)
+
+# Then, use the read_excel() function to read the file
+dftweets <- read_excel("silentinvasiontweethistory.xlsx")
+```
+
+```{r}
+# subset dataframe silentinvasiontweethistory and write into silentinvasiontweethistory.csv
+dftweetstext <- subset(dftweets, select = c("Entry", "OriginalEmotion", "ValidatedEmotion", "Condition", "VoteDistribution"))
+```
+
+
+## Build data for SNA and export it to gephi file
+
+```{r}
+# Load tweets 
+tweets_bind_df <- bind_tweets(data_path = "/Users/darmawan/Documents/rstudio/silentinvasion/json2/") %>%  #for data stored in a data_path
+  as_tibble()
+tweets_bind_df_tidy <- bind_tweets(data_path = "/Users/darmawan/Documents/rstudio/silentinvasion/json2/", output_format = "tidy")
+```
+
+```{r}
+# Unnest dataframe column entities
+unnested_df <- unnest(tweets_bind_df, cols = entities, keep_empty = TRUE)
+entities_df <- tweets_bind_df$entities %>%
+  as_tibble()
+```  
+
+```{r}
+# Extract mentions column as list
+mentions_list <- entities_df$mentions
+```  
+
+```{r}
+### If element in list is an empty list replace it with an empty dataframe
+# Empty dataframe
+empty_df <-
+  data.frame(start = NA,
+             end = NA,
+             username = NA,
+             id = NA)
+
+# Loop
+for (i in seq_along(mentions_list)) { # loop over elements in list
+  if (!is.data.frame(mentions_list[[i]])) { # check if not a dataframe
+    mentions_list[[i]] <- empty_df # replace with empty dataframe
+  }
+}
+```  
+
+```{r}
+# Replace column with empty lists with column with empty dataframes
+unnested_df$mentions <- mentions_list
+``` 
+
+```{r}
+# Unnest mentions column to longer (i.e. one or more rows per tweet_id)
+tweets_bind_df_longer <- unnest_longer(unnested_df, col = mentions)
+``` 
+
+```{r}
+# Rename mentions columns and unnest mentions df
+names(tweets_bind_df_longer$mentions)[names(tweets_bind_df_longer$mentions) == 'id'] <- 'mentions_id'
+names(tweets_bind_df_longer$mentions)[names(tweets_bind_df_longer$mentions) == 'username'] <- 'mentions_username'
+
+tweets_bind_df_mentions <- tweets_bind_df_longer %>% unnest(mentions)
+```
+
+```{r}
+# Join by tweet_id
+names(tweets_bind_df_mentions)[names(tweets_bind_df_mentions) == 'id'] <- 'tweet_id'
+tweets_bind_df_mentions_narrow <- 
+  tweets_bind_df_mentions[,c("tweet_id", "mentions_username", 
+                                                  "mentions_id")]
+
+tweets_bind_mentions_tidy_df <- 
+  left_join(tweets_bind_df_tidy, tweets_bind_df_mentions_narrow, by='tweet_id') 
+```
+
+
+```{r}
+# Saving data frame:
+save(tweets_bind_mentions_tidy_df, file = "silentinvasionmentions.RData")
+```
+
+
+```{r}
+# Saving data frame to *.csv file:
+write.csv(tweets_bind_mentions_tidy_df, file = "silentinvasionmentions.csv", row.names = FALSE)
+```
+
+```{r}
+library(igraph)
+## Create graph
+filter(tweets_bind_mentions_tidy_df, retweet_count > 0) %>%
+  select(user_username, mentions_username) %>%
+  unnest(mentions_username) %>% 
+  filter(!is.na(mentions_username)) %>% 
+  graph_from_data_frame() -> net
+
+```
+
+```{r}
+summary(net)
+```
+
+```{r}
+library(igraph)
+write_graph(simplify(net),  "silentinvasionmentionsSNA.gml", format = "gml")
+```
+
+
+
+## Clean all tweet
+
+```{r}
+# Load Rdata:
+load("tweettext.RData")
+```
+
+```{r}
+# Make lower case
+tweettext$text <- tolower(tweettext$text)
+```
+
+```{r}
+library(stringr)
+
+# Take out retweet header
+tweettext$text <- str_replace(tweettext$text,"RT @[a-z,_,A-Z,0-9]*: ","")
+tweettext$text <- str_replace(tweettext$text,"rt @[a-z,_,A-Z,0-9]*: ","")
+tweettext$text <- str_replace(tweettext$text,"RT : ","")
+tweettext$text <- str_replace(tweettext$text,"rt : ","")
+```
+
+```{r}
+library(stringr)
+
+# Get rid of references to other screennames
+tweettext$text <- str_replace_all(tweettext$text,"@[a-z,_,A-Z,0-9]*","")
+```
+
+```{r}
+library(stringr)
+
+# Get rid of hashtags
+tweettext$text <- str_replace_all(tweettext$text,"#[a-z,_,A-Z,0-9]*","")
+```
+
+```{r}
+library(tm)
+# Remove whitespace
+tweettext$text <- stripWhitespace(tweettext$text)
+```
+
+```{r}
+# Delete the leading and trailing spaces
+tweettext$text <- trimws(tweettext$text)
+```
+
+```{r}
+library(qdapRegex)
+
+# Get rid of URLs
+rm_twitter_n_url <- rm_(pattern=pastex("@rm_twitter_url", "@rm_url"))
+tweettext$text <- rm_twitter_n_url(tweettext$text)
+
+```
+
+
+```{r}
+# Remove all emoticons from the sentence
+tweettext$text <- gsub("[^[:alnum:][:space:]]+", "", tweettext$text)
+```
+
+
+```{r}
+# Remove numbers
+tweettext$text <- removeNumbers(tweettext$text)
+```
+
+
+```{r}
+# Remove whitespace
+tweettext$text <- stripWhitespace(tweettext$text)
+```
+
+```{r}
+# Delete the leading and trailing spaces
+tweettext$text <- trimws(tweettext$text)
+```
+
+```{r}
+# Subset data frame:
+tweettext <- subset(tweettext, select="text")
+```
+
+
+```{r}
+# Saving data frame into csv file:
+write.csv(tweettext, "tweettextdataset.csv", row.names = FALSE)
+```
+
+
+
+## Stop in here to try machine learning
+
+```{r}
+tweettext <- read.csv("tweettextdataset.csv")
+```
+
+
+```{r}
+# Remove stopwords
+turkishstopwords <- readLines("TurkishSentiment-Stopwords.txt")
+tweettext$text <- removeWords(tweettext$text, turkishstopwords)
+```
+
+```{r}
+# Remove whitespace
+tweettext$text <- stripWhitespace(tweettext$text)
+```
+
+```{r}
+# Delete the leading and trailing spaces
+tweettext$text <- trimws(tweettext$text)
+```
+
+```{r}
+# Saving data frame into csv file:
+write.csv(tweettext, "tweettextdatasetML.csv", row.names = FALSE)
+```
+
+
+## Stemming Turkish words but ignored for now, we try to use morphology method in python for better result
+
+```{r}
+# Load the SnowballC package
+library(SnowballC)
+
+# Define a function to stem the words in a sentence
+stem_sentence <- function(sentence) {
+  # Split the sentence into a list of words
+  words <- strsplit(sentence, " ")[[1]]
+  
+  # Stem the words using the Turkish stemmer from SnowballC
+  stemmed_words <- stemDocument(words, language = "turkish")
+  
+  # Join the stemmed words into a single string
+  stemmed_sentence <- paste(stemmed_words, collapse = " ")
+  
+  return(stemmed_sentence)
+}
+
+# Use the apply function to apply the stem_sentence function to each row of the text column
+tweettext$text <- apply(tweettext, 1, function(row) stem_sentence(row["text"]))
+```
+
+
+## Analysis all tweet
+
+```{r}
+tweettext <- read.csv("tweettextdatasetML.csv")
+```
+
+
+```{r}
+# Use the table() function to count the frequency of each word
+word_counts <- table(unlist(strsplit(tweettext$text, " ")))
+```
+
+
+```{r}
+# Use the sort() function to sort the word counts in descending order
+sorted_word_counts <- sort(word_counts, decreasing = TRUE)
+
+# Print the most frequent words
+sorted_word_counts[1:40]
+```
+
+From most frequent words in the tweets. We found 40's words as follows (in Turkish): 
+istila, sessiz, işgal, kaçak, memleketin, serbest, suriyelilerin, kimliği, adresi, ikametgah, vilayetine, gidebilmesi, mill, partinin, stratejik, ensar, göç, evet, ülkemizi, ak (name of the Turkish party, AK Party), mühendisliği, örtülü, masalı, anlatarak, hande  (name of person), yüzde, karacasu  (name of person), el, gerçek, çataklı, sinsi, ığınmacısorunu, ılar, sarsıcı, gümbür, bot, yapan, içişleri, hesapların, altında 
+
+If we translated in English as follows:
+invasion, silent, occupation, fugitive, your hometown, free, syrians, identity, address, domicile, prefecture, ability to go, nationality, party, strategic, ensar, migration, yes, our country, ak (name of the Turkish party, AK Party), engineering, covered, tale, telling, hande  (name of person), percent, karacasu  (name of person), hand, real, fringed, sly, refugee problem, i will, jarring, rumble, bot (robot, as a twitter bots), making, interior, your accounts, under
+
+
+```{r}
+library(wordcloud)
+
+# Create a word cloud object
+wordcloud(words = names(sorted_word_counts), freq = sorted_word_counts, scale=c(2.5,.5), min.freq = 40, max.words = 300, colors = brewer.pal(8, "Dark2"))
+
+```
+
+
+```{r}
+# Bigram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each bigram and one column for each word
+bigrams <- tweettext %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+# Count the number of occurrences of each bigram
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+```
+
+```{r}
+# Head
+bigram_counts$bigram[1:40]
+```
+
+```{r}
+# Trigram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each trigram and one column for each word
+trigram <- tweettext %>%
+  unnest_tokens(trigram, text, token = "ngrams", n = 3)
+
+# Count the number of occurrences of each trigram
+trigram_counts <- trigram %>%
+  count(trigram, sort = TRUE)
+```
+
+```{r}
+# Head
+trigram_counts$trigram[1:40]
+```
+
+```{r}
+# 4-gram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each bigram and one column for each word
+fourgram <- tweettext %>%
+  unnest_tokens(fourgram, text, token = "ngrams", n = 4)
+
+# Count the number of occurrences of each bigram
+fourgram_counts <- fourgram %>%
+  count(fourgram, sort = TRUE)
+```
+
+```{r}
+# Head
+fourgram_counts$fourgram[1:40]
+```
+
+```{r}
+# Subset data frame:
+bigramdata <- subset(bigram_counts, select="bigram")
+```
+
+
+
+## Making dataset for human coding
+
+```{r}
+tweettext <- read.csv("tweettextdataset.csv")
+```
+
+
+```{r}
+# Cleaning duplicate row from trainingset data
+tweettext <- unique(tweettext)
+```
+
+
+```{r}
+# Remove whitespace
+tweettext$text <- stripWhitespace(tweettext$text)
+```
+
+
+```{r}
+# Delete the leading and trailing spaces
+tweettext$text <- trimws(tweettext$text)
+```
+
+
+```{r}
+# delete empty row from dataframe
+tweettext <- na.omit(tweettext)
+```
+
+
+```{r}
+# Saving data frame into csv file:
+write.csv(tweettext, "tweettextdatasetclean.csv", row.names = FALSE)
+```
+
+
+
+## Using R, load trainingset.csv into trainingset dataframe. Then select 301 first rows on the dataframe, and save it as trainingsetabbas.csv
+
+```{r}
+# Load the csv file into a dataframe
+trainingset <- read.csv("tweettextdatasetclean.csv")
+
+# Select the first 301 rows of the dataframe
+trainingsetabbas <- trainingset[1:400, ]
+
+# Cleaning duplicate row from trainingset data
+trainingsetabbas <- unique(trainingsetabbas)
+
+# Delete the leading and trailing spaces
+trainingsetabbas <- trimws(trainingsetabbas)
+
+# Save the selected rows as a new csv file
+write.csv(trainingsetabbas, "trainingsetabbas.csv", row.names = FALSE)
+```
+
+
+## First time "sessiz istila" found from journalist linked to Zafer Party. But isn't relatable because he talked about plants
+```{r}
+library(academictwitteR)
+silentinvasion = count_all_tweets(
+  query = "sessiz istila",
+  exact_phrase = T,
+    start_tweets = "2019-12-01T00:00:00Z",
+    end_tweets = "2019-12-31T00:00:00Z",
+    granularity = "day",
+    n=Inf
+  )
+```
+
+
+## We found starting issue "sessiz istila" from book published by Hande Karacasu posted on Twitter
+
+```{r}
+library(academictwitteR)
+silentinvasion = count_all_tweets(
+  query = "sessiz istila",
+  exact_phrase = T,
+    start_tweets = "2021-06-01T00:00:00Z",
+    end_tweets = "2022-12-31T00:00:00Z",
+    granularity = "day",
+    n=Inf
+  )
+```
+
+```{r}
+sum(silentinvasion$tweet_count)
+```
+
+
+## Process tweet data
+
+
+
