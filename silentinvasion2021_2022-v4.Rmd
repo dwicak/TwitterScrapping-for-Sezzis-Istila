@@ -1,0 +1,3126 @@
+---
+title: "silentinvasion2022"
+author: "Darmawan Wicaksono"
+date: "2022-12-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Silent invasion tweet
+
+```{r}
+# Read csv file
+silentinvasionv3 <- read.csv("silentinvasiontest.csv")
+```
+
+## BOF - This part for annotation
+```{r}
+# /scripts/silentinvasion_annotation.R
+# Purpose: Create a multi-label annotation Excel file from 'silentinvasionv3' without duplicates and without timestamp
+
+# Load required library
+library(writexl)
+
+# Step 1: Remove duplicate tweets based on 'text' column
+df_unique <- silentinvasionv3[!duplicated(silentinvasionv3$text), ]
+
+# Step 2: Drop 'created_at' column if it exists
+if ("created_at" %in% colnames(df_unique)) {
+  df_unique$created_at <- NULL
+}
+
+# Step 3: Keep only the first 100 rows
+df_sample <- head(df_unique, 100)
+
+# Step 4: Define emotion categories
+emotion_labels <- c("anger", "disgust", "fear", "happy", "sadness", "surprise")
+
+# Step 5: Create empty binary emotion columns (to be annotated later)
+for (emotion in emotion_labels) {
+  df_sample[[emotion]] <- 0
+}
+
+# Step 6: Save the result to Excel
+write_xlsx(df_sample, path = "annotation_participant_multilabel.xlsx")
+```
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count_v14 <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts_v14 <- df_count_v14 %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts_v14)
+```
+
+```{r}
+# /scripts/match_annotation_with_original.R
+# Purpose: From df_count_v14, extract rows that match df_sample by row index and keep only 'text' and 'emotion'
+
+# Load required library
+library(writexl)
+
+# Step 1: Ensure 'df_sample' contains the subset of interest (assumed to be already created)
+#         Extract its row numbers (i.e., original row indices from df_count_v14)
+matched_indices <- as.numeric(rownames(df_sample))
+
+# Step 2: Subset df_count_v14 using those indices
+df_matched <- df_count_v14[matched_indices, c("text", "emotion")]
+
+# Step 3: Save the matched subset to Excel
+write_xlsx(df_matched, path = "annotation_participant_original.xlsx")
+```
+## EOF - This part for annotation
+
+
+```{r}
+# Load the utils package
+library(utils)
+
+# Convert the date column to the ISO 8601 format
+silentinvasionv3$date <- strptime(silentinvasionv3$created_at, format = "%Y-%m-%dT%H:%M:%S.%OSZ")
+```
+
+
+```{r}
+# Extract the year from each date
+library(lubridate)
+silentinvasionv3$year <- year(silentinvasionv3$date)
+```
+
+
+```{r}
+library(dplyr)
+silentinvasionv3_2021_2022 <- silentinvasionv3
+```
+
+
+```{r}
+library(stringr)
+
+# Take out retweet header
+silentinvasionv3_2021_2022$text <- str_replace(silentinvasionv3_2021_2022$text, "RT @\\w+:", "(retweetlemek)")
+silentinvasionv3_2021_2022$text <- str_replace(silentinvasionv3_2021_2022$text, "RT @\\p{Lu}\\w+:", "(retweetlemek)")
+silentinvasionv3_2021_2022$text <- str_replace(silentinvasionv3_2021_2022$text,"RT :","(retweetlemek)")
+silentinvasionv3_2021_2022$text <- str_replace(silentinvasionv3_2021_2022$text,"rt :","(retweetlemek)")
+```
+
+
+```{r}
+library(stringr)
+
+# Convert hashtags into readable words
+silentinvasionv3_2021_2022$text <- str_replace_all(silentinvasionv3_2021_2022$text,"#(\\w+)", "(\\1)")
+
+```
+
+
+```{r}
+library(qdapRegex)
+
+# Convert URL into readable words
+silentinvasionv3_2021_2022$text <- str_replace_all(silentinvasionv3_2021_2022$text,"\\w+://\\S+", "(bağlantı adresi)")
+
+# Replace fragments with 'http' prefix with a placeholder
+silentinvasionv3_2021_2022$text <- str_replace_all(silentinvasionv3_2021_2022$text, "http\\S*", "(bağlantı adresi)")
+```
+
+
+```{r}
+library(stringr)
+
+# Convert references to other screennames into readable words
+silentinvasionv3_2021_2022$text <- str_replace_all(silentinvasionv3_2021_2022$text,"@[a-z,_,A-Z,0-9]*", "(kullanıcı)")
+
+```
+
+
+```{r}
+library(stringr)
+
+# Get rid of unwanted characters
+silentinvasionv3_2021_2022$text <- str_replace_all(silentinvasionv3_2021_2022$text, "[/\\\\+#]", "")
+
+```
+
+
+```{r}
+library(tm)
+
+# Make lower case
+silentinvasionv3_2021_2022$text <- tolower(silentinvasionv3_2021_2022$text)
+```
+
+
+```{r}
+# Delete empty parts in dataframe
+
+# Delete NA
+silentinvasionv3_2021_2022$text <- gsub("NA", "", silentinvasionv3_2021_2022$text)
+
+# Remove whitespace
+silentinvasionv3_2021_2022$text <- stripWhitespace(silentinvasionv3_2021_2022$text)
+
+# Delete the leading and trailing spaces
+silentinvasionv3_2021_2022$text <- trimws(silentinvasionv3_2021_2022$text)
+```
+
+
+```{r}
+# Replace emojis to Turkish text translation
+# DO NOT USE THIS in R, ALREADY DONE IN GOOGLE COLLABS for better computing power
+# Using advance loop
+library(dplyr)
+library(stringr)
+
+# Load emoticons data
+emoticons_df <- read.csv("emojis_emoticons_Turkish.csv", stringsAsFactors = FALSE)
+
+# Function to replace emojis with their Turkish translations
+replace_emoticons_optimized <- function(text, mapping) {
+  # Escape regex special characters in emojis
+  escaped_emojis <- sapply(mapping$Emoji, regex_escape, USE.NAMES = FALSE)
+  
+  # Create a regex pattern that matches any of the emojis
+  pattern <- paste0(escaped_emojis, collapse = "|")
+  
+  # Create a named vector for replacements where names are emojis and values are translations formatted with parentheses
+  replacements <- setNames(paste0("(", mapping$Translated, ")"), mapping$Emoji)
+  
+  # Create a named vector for replacements where names are emojis and values are translations
+  #replacements <- setNames(mapping$Translated, mapping$Emoji)
+  
+  # Use str_replace_all with the vectorized replacement approach
+  text <- str_replace_all(text, pattern, function(x) replacements[x])
+  return(text)
+}
+
+# Helper function to escape regex special characters in strings
+regex_escape <- function(x) {
+  str_replace_all(x, "([\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\\,])", "\\\\\\1")
+}
+
+# Apply the replacement function to the text column
+silentinvasionv3_2021_2022$text <- sapply(silentinvasionv3_2021_2022$text, replace_emoticons_optimized, mapping = emoticons_df)
+
+# Cleanup whitespace
+silentinvasionv3_2021_2022$text <- str_squish(silentinvasionv3_2021_2022$text)
+
+# Delete the leading and trailing spaces (if any remain)
+silentinvasionv3_2021_2022$text <- trimws(silentinvasionv3_2021_2022$text)
+
+# DO NOT USE THIS in R, ALREADY DONE IN GOOGLE COLLABS for better computing power
+```
+
+
+```{r}
+write.csv(silentinvasionv3_2021_2022, "silentinvasionv4_2021_2022.csv", row.names = FALSE)
+```
+
+
+```{r}
+silentinvasionv4_2021_2022 <- read.csv("silentinvasionv4_2021_2022.csv")
+```
+
+
+```{r}
+library(dplyr)
+
+# Select only the "text" column and put it into a new data frame
+silentinvasionv4_2021_2022cleanv4 <- select(silentinvasionv4_2021_2022, text)
+
+# write on csv file
+write.csv(silentinvasionv4_2021_2022cleanv4, "silentinvasionv4_2021_2022cleanv4.csv", row.names = FALSE)
+```
+
+```{r}
+silentinvasionv4_2021_2022cleanv4 <- read.csv("silentinvasionv4_2021_2022cleanv4.csv")
+```
+
+
+
+
+## Hasil BERT menggunakan Google Colab
+```{r}
+predictedresults <- read.csv("predicted_results.csv")
+```
+
+
+## Silent invasion analyze using PyTorch
+```{r}
+# Read csv file
+silentinvasionv3_predicted <- read.csv("silentinvasionv3_2021_2022cleanv3_with_emotions_v1.csv")
+```
+
+```{r}
+# Potong sithik
+# Taking first 51 rows from the dataset
+potonganakbar <- silentinvasionv3_predicted[1:51, ]
+
+# Save the new dataset as CSV file
+write.csv(potonganakbar, "potonganakbar.csv", row.names = FALSE)
+```
+
+
+```{r}
+# EXPERIMENT 1
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv3_2021_2022cleanv3_with_emotions_v1.csv')
+
+# Exclude 'Ambigious' category from the dataset
+df_filtered <- df_predicted %>% 
+  filter(emotion != "Ambigious")
+
+# Plot the bar chart with the filtered dataset
+df_filtered %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset (Excluding 'Ambigious')",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv3_2021_2022cleanv3_with_emotions_v1.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  filter(emotion != "Ambigious") %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_ambigu <- read.csv('silentinvasionv3_2021_2022cleanv3_with_emotions_v1.csv')
+
+# Count the number of 'Ambigious' entries
+ambigious_count <- df_ambigu %>%
+  filter(emotion == "Ambigious") %>%
+  summarise(Count = n())
+
+# Print the count of 'Ambigious'
+print(ambigious_count)
+
+```
+
+
+```{r}
+# EXPERIMENT 2
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted2 <- read.csv('silentinvasionv3_2021_2022cleanv3_with_emotions_v2.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted2 %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv3_2021_2022cleanv3_with_emotions_v2.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+
+
+```{r}
+# EXPERIMENT 3
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v5.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v5.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates from June 1, 2021 to December 31, 2021
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2021-06-01") & date <= as.Date("2021-12-31"))
+
+# Manually setting the breaks to include only months from June 2021 to December 2021
+monthly_breaks <- seq(from = as.Date("2021-06-01"), to = as.Date("2021-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2021-06-01", "2021-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (June-Dec 2021)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates up to December 31, 2022
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Manually setting the breaks to include only months in 2022
+monthly_breaks <- seq(from = as.Date("2022-01-01"), to = as.Date("2022-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2022-01-01", "2022-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (2022)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+
+
+```{r}
+# EXPERIMENT 4
+# INI SAMA DENGAN PERCOBAAN 5, NAMUN THRESHOLD NYA STANDAR 0.5
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v6.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v6.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates from June 1, 2021 to December 31, 2021
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2021-06-01") & date <= as.Date("2021-12-31"))
+
+# Manually setting the breaks to include only months from June 2021 to December 2021
+monthly_breaks <- seq(from = as.Date("2021-06-01"), to = as.Date("2021-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2021-06-01", "2021-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (June-Dec 2021)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates up to December 31, 2022
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Manually setting the breaks to include only months in 2022
+monthly_breaks <- seq(from = as.Date("2022-01-01"), to = as.Date("2022-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2022-01-01", "2022-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (2022)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 4, NAMUN THRESHOLD NYA DINAIKIN MENJADI 0.6
+# EXPERIMENT 5
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v7.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 5, THRESHOLD NYA SAMA DINAIKIN MENJADI 0.6, HANYA MENGULANG EKSPERIMEN 5 SAJA UNTUK VALIDASI
+# EXPERIMENT 6
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v8.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 5, THRESHOLD NYA SAMA DINAIKIN MENJADI 0.6, TAPI RUNTIME AWAL DIHAPUS. UNTUK VALIDASI
+# EXPERIMENT 7
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v9.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 5, TAPI DIREFACTORING UNTUK MENGHASILKAN DATA TRAINING BERT DENGAN TREMO YANG KONSISTEN
+# EXPERIMENT 8
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v10.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 8, TAPI DIULANG TRAINING BERT DENGAN TREMO NYA
+# EXPERIMENT 9
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v11.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 9, TAPI DENGAN CODE BARU
+# EXPERIMENT 10
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v12.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 10, UNTUK VERIFIKASI
+# EXPERIMENT 11
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v13.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 10 DAN 11, DENGAN MODEL TRAINING BARU UNTUK VERIFIKASI
+# EXPERIMENT 12
+# USING TREMO Calibration
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Plot the bar chart with the filtered dataset
+df_predicted %>%
+  ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+  geom_bar() +  # Create a bar chart
+  theme_minimal() +  # Use a minimal theme for aesthetics
+  labs(title = "Count of Emotions in Dataset",
+       x = "Emotion Category",
+       y = "Frequency") +  # Add chart labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+
+```
+
+```{r}
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates from June 1, 2021 to December 31, 2021
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2021-06-01") & date <= as.Date("2021-12-31"))
+
+# Manually setting the breaks to include only months from June 2021 to December 2021
+monthly_breaks <- seq(from = as.Date("2021-06-01"), to = as.Date("2021-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2021-06-01", "2021-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (June-Dec 2021)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Filter data to only include dates up to December 31, 2022
+df_predicted_filtered <- df_predicted %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Manually setting the breaks to include only months in 2022
+monthly_breaks <- seq(from = as.Date("2022-01-01"), to = as.Date("2022-12-31"), by = "month")
+
+# Creating the scatter plot with custom colors
+ggplot(df_predicted_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2022-01-01", "2022-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (2022)",
+       x = "Date",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+
+
+### FINAL CODE FINAL CODE FINAL CODE FINAL CODE
+### FINAL CODe FINAL CODE FINAL CODe FINAL CODE
+### FINAL CODE FINAL CODE FINAL CODE FINAL CODE
+### FINAL CODe FINAL CODE FINAL CODe FINAL CODE
+### FINAL CODE FINAL CODE FINAL CODE FINAL CODE
+### FINAL CODe FINAL CODE FINAL CODe FINAL CODE
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 12, DENGAN MEMECAH CHART MENJADI TAHUN 2021 DAN 2022 
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 13
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar() +  # Create a bar chart
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+}
+
+# Plot the bar charts for each year and the combined years
+plot_2021 <- create_bar_chart(df_predicted_2021, "Count of Emotions in Dataset - 2021")
+plot_2022 <- create_bar_chart(df_predicted_2022, "Count of Emotions in Dataset - 2022")
+plot_combined <- create_bar_chart(df_predicted_combined, "Count of Emotions in Dataset - 2021 & 2022")
+
+# Display the plots
+print(plot_2021)
+print(plot_2022)
+print(plot_combined)
+
+```
+
+```{r}
+# VERSI THRESOLD 0.6
+# INI SAMA DENGAN PERCOBAAN 13, HANYA MENGUBAH WARNA BARNYA MENJADI BIRU
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 14
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart with steelblue color
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar(fill = "steelblue", color = "black") +  # Fill bars with steelblue, add black border
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for readability
+}
+
+# Plot the bar charts for each year and the combined years
+plot_2021 <- create_bar_chart(df_predicted_2021, "Count of Emotions in Dataset - 2021")
+plot_2022 <- create_bar_chart(df_predicted_2022, "Count of Emotions in Dataset - 2022")
+plot_combined <- create_bar_chart(df_predicted_combined, "Count of Emotions in Dataset - 2021 & 2022")
+
+# Display the plots
+print(plot_2021)
+print(plot_2022)
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.5
+# INI SAMA DENGAN PERCOBAAN 13, HANYA MENGUBAH WARNA BARNYA MENJADI BIRU
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 14
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-5.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart with steelblue color
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar(fill = "steelblue", color = "black") +  # Fill bars with steelblue, add black border
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for readability
+}
+
+# Plot the bar charts for each year and the combined years
+plot_2021 <- create_bar_chart(df_predicted_2021, "Count of Emotions in Dataset - 2021")
+plot_2022 <- create_bar_chart(df_predicted_2022, "Count of Emotions in Dataset - 2022")
+plot_combined <- create_bar_chart(df_predicted_combined, "Count of Emotions in Dataset - 2021 & 2022")
+
+# Display the plots
+print(plot_2021)
+print(plot_2022)
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.7
+# INI SAMA DENGAN PERCOBAAN 13, HANYA MENGUBAH WARNA BARNYA MENJADI BIRU
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 14
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-7.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart with steelblue color
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar(fill = "steelblue", color = "black") +  # Fill bars with steelblue, add black border
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for readability
+}
+
+# Plot the bar charts for each year and the combined years
+plot_2021 <- create_bar_chart(df_predicted_2021, "Count of Emotions in Dataset - 2021")
+plot_2022 <- create_bar_chart(df_predicted_2022, "Count of Emotions in Dataset - 2022")
+plot_combined <- create_bar_chart(df_predicted_combined, "Count of Emotions in Dataset - 2021 & 2022")
+
+# Display the plots
+print(plot_2021)
+print(plot_2022)
+print(plot_combined)
+```
+
+```{r}
+# INI SAMA DENGAN PERCOBAAN 14, HANYA MENGUBAH KUALITAS IMAGE MENJADI 300 DPI
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 15
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart with steelblue color
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar(fill = "steelblue", color = "black") +  # Fill bars with steelblue, add black border
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for readability
+}# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_2021 <- df_predicted %>% filter(year == 2021 & emotion != "ambiguous")
+df_predicted_2022 <- df_predicted %>% filter(year == 2022 & emotion != "ambiguous")
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Function to create bar chart with steelblue color
+create_bar_chart <- function(data, title) {
+  data %>%
+    ggplot(aes(x = emotion)) +  # Specify the column for the x-axis
+    geom_bar(fill = "steelblue", color = "black") +  # Fill bars with steelblue, add black border
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(title = title,
+         x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for readability
+}
+
+# Plot the bar charts for each year and the combined years
+plot_2021 <- create_bar_chart(df_predicted_2021, "Count of Emotions in Dataset - 2021")
+plot_2022 <- create_bar_chart(df_predicted_2022, "Count of Emotions in Dataset - 2022")
+plot_combined <- create_bar_chart(df_predicted_combined, "Count of Emotions in Dataset - 2021 & 2022")
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Save the plots as TIFF images with 300 DPI
+ggsave(
+  filename = file.path(output_folder, "plot_2021.tiff"),  # File name for 2021 plot
+  plot = plot_2021,           # Plot object
+  device = "tiff",            # Save as TIFF
+  dpi = 300,                  # Resolution in DPI
+  width = 8, height = 6,      # Dimensions in inches
+  units = "in"
+)
+
+ggsave(
+  filename = file.path(output_folder, "plot_2022.tiff"),  # File name for 2022 plot
+  plot = plot_2022,           # Plot object
+  device = "tiff",            # Save as TIFF
+  dpi = 300,                  # Resolution in DPI
+  width = 8, height = 6,      # Dimensions in inches
+  units = "in"
+)
+
+ggsave(
+  filename = file.path(output_folder, "plot_combined.tiff"),  # File name for combined plot
+  plot = plot_combined,           # Plot object
+  device = "tiff",                # Save as TIFF
+  dpi = 300,                      # Resolution in DPI
+  width = 8, height = 6,          # Dimensions in inches
+  units = "in"
+)
+
+# Display the plots
+print(plot_2021)
+print(plot_2022)
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.6
+# INI SAMA DENGAN PERCOBAAN 15, HANYA MENGUBAH KUALITAS IMAGE MENJADI 600 DPI
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 16
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Define custom colors for emotions
+colors <- c("anger" = "red", 
+            "disgust" = "green", 
+            "fear" = "purple", 
+            "happy" = "yellow", 
+            "sadness" = "blue", 
+            "surprise" = "orange")
+
+# Function to create bar chart with custom colors, no title, and no legend
+create_bar_chart_no_title_no_legend <- function(data, colors) {
+  data %>%
+    ggplot(aes(x = emotion, fill = emotion)) +  # Specify the column for the x-axis and fill by emotion
+    geom_bar(color = "black") +  # Add black border around bars
+    scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels without title
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5),  # Rotate x-axis labels for readability
+          legend.position = "none")  # Remove the legend
+}
+
+# Create the plot without the title and legend
+plot_combined <- create_bar_chart_no_title_no_legend(df_predicted_combined, colors)
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 7.tiff"),  # Save as Figure 7.tiff in the 300dpi folder
+  plot = plot_combined,           # Plot object
+  device = "tiff",                # Save as TIFF format
+  dpi = 600,                      # Resolution in DPI
+  width = 8, height = 6,          # Dimensions in inches
+  units = "in"                    # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.5
+# INI SAMA DENGAN PERCOBAAN 15, HANYA MENGUBAH KUALITAS IMAGE MENJADI 600 DPI
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 16
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-5.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Define custom colors for emotions
+colors <- c("anger" = "red", 
+            "disgust" = "green", 
+            "fear" = "purple", 
+            "happy" = "yellow", 
+            "sadness" = "blue", 
+            "surprise" = "orange")
+
+# Function to create bar chart with custom colors, no title, and no legend
+create_bar_chart_no_title_no_legend <- function(data, colors) {
+  data %>%
+    ggplot(aes(x = emotion, fill = emotion)) +  # Specify the column for the x-axis and fill by emotion
+    geom_bar(color = "black") +  # Add black border around bars
+    scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels without title
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5),  # Rotate x-axis labels for readability
+          legend.position = "none")  # Remove the legend
+}
+
+# Create the plot without the title and legend
+plot_combined <- create_bar_chart_no_title_no_legend(df_predicted_combined, colors)
+
+# Define the output folder
+output_folder <- "AAIML-600dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 7-05.tiff"),  # Save as Figure 7.tiff in the 300dpi folder
+  plot = plot_combined,           # Plot object
+  device = "tiff",                # Save as TIFF format
+  dpi = 600,                      # Resolution in DPI
+  width = 8, height = 6,          # Dimensions in inches
+  units = "in"                    # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.7
+# INI SAMA DENGAN PERCOBAAN 15, HANYA MENGUBAH KUALITAS IMAGE MENJADI 600 DPI
+# SEKALIGUS KOMBINASI CHART TAHUN 2021 SAMPAI 2022
+
+# EXPERIMENT 16
+# USING TREMO Calibration
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_predicted <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-7.csv')
+
+# Filter the dataset by year and get rid of the ambiguous emotions
+df_predicted_combined <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Define custom colors for emotions
+colors <- c("anger" = "red", 
+            "disgust" = "green", 
+            "fear" = "purple", 
+            "happy" = "yellow", 
+            "sadness" = "blue", 
+            "surprise" = "orange")
+
+# Function to create bar chart with custom colors, no title, and no legend
+create_bar_chart_no_title_no_legend <- function(data, colors) {
+  data %>%
+    ggplot(aes(x = emotion, fill = emotion)) +  # Specify the column for the x-axis and fill by emotion
+    geom_bar(color = "black") +  # Add black border around bars
+    scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+    theme_minimal() +  # Use a minimal theme for aesthetics
+    labs(x = "Emotion Category",
+         y = "Frequency") +  # Add chart labels without title
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5),  # Rotate x-axis labels for readability
+          legend.position = "none")  # Remove the legend
+}
+
+# Create the plot without the title and legend
+plot_combined <- create_bar_chart_no_title_no_legend(df_predicted_combined, colors)
+
+# Define the output folder
+output_folder <- "AAIML-600dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 7-07.tiff"),  # Save as Figure 7.tiff in the 300dpi folder
+  plot = plot_combined,           # Plot object
+  device = "tiff",                # Save as TIFF format
+  dpi = 600,                      # Resolution in DPI
+  width = 8, height = 6,          # Dimensions in inches
+  units = "in"                    # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot_combined)
+```
+
+```{r}
+# VERSI THRESOLD 0.6
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  filter(emotion != "ambiguous") %>%  # Exclude 'Ambiguous' category
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+```{r}
+# VERSI THRESOLD 0.5
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-5.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  filter(emotion != "ambiguous") %>%  # Exclude 'Ambiguous' category
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+```{r}
+# VERSI THRESOLD 0.7
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v0-7.csv')
+
+# Exclude 'Ambigious' category and calculate the count for each remaining category
+emotion_counts <- df_count %>%
+  filter(emotion != "ambiguous") %>%  # Exclude 'Ambiguous' category
+  group_by(emotion) %>%
+  summarise(Count = n())
+
+# Print the counts
+print(emotion_counts)
+
+```
+
+```{r}
+# KOMBINASI TAHUN 2021 SAMPAI DENGAN TAHUN 2022
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Filter out rows where 'emotion' is "ambiguous"
+df_filtered <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time",
+       x = "Month",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# HANYA TAHUN 2021
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Filter out rows where 'emotion' is "ambiguous"
+df_filtered <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Filter data to only include dates from June 1, 2021, to December 31, 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-06-01") & date <= as.Date("2021-12-31"))
+
+# Manually setting the breaks to include only months from June 2021 to December 2021
+monthly_breaks <- seq(from = as.Date("2021-06-01"), to = as.Date("2021-12-31"), by = "month")
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2021-06-01", "2021-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (June-Dec 2021)",
+       x = "Month",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# Generate Total Monthly Emotion Counts for 2021
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous"
+df_filtered <- df_predicted %>%
+  filter(emotion != "ambiguous")
+
+# Filter data to only include dates within the year 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))
+
+# Summarize the total count of emotions by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarise(total_count = n(), .groups = 'drop')
+
+# Create the bar chart
+ggplot(df_summary, aes(x = month, y = total_count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  scale_x_date(breaks = seq(as.Date("2021-01-01"), as.Date("2021-12-31"), by = "month"), date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Total Emotion Counts per Month in 2021",
+       x = "Month",
+       y = "Total Emotion Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better visibility
+```
+
+
+```{r}
+# KALKULASI TAHUN 2021
+# Dengan menampilkan semua emosi
+
+# Generate Monthly Counts for Selected Emotions in 2021
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart
+ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2021-01-01"), as.Date("2021-12-31"), by = "month"), date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Monthly Emotion Count Over Time (June-December 2021)",
+       x = "Month",
+       y = "Emotion Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# KALKULASI TAHUN 2021 MENGHILANGKAN TAHUNNYA SAJA
+# Dengan menampilkan semua emosi
+
+# Generate Monthly Counts for Selected Emotions in 2021
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart
+ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2021-01-01"), as.Date("2021-12-31"), by = "month"), date_labels = "%b") +
+  theme_minimal() +
+  labs(title = "Monthly Emotion Count Over Time (June-December 2021)",
+       x = "Month",
+       y = "Emotion Count") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# KALKULASI TAHUN 2021 DENGAN PERUBAHAN GAMBAR 300 DPI
+# Dengan menampilkan semua emosi
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the plot
+plot <- ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2021-01-01"), as.Date("2021-12-31"), by = "month"), date_labels = "%b") +
+  theme_minimal() +
+  labs(title = "Monthly Emotion Count Over Time (June-December 2021)",
+       x = "Month",
+       y = "Emotion Count") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for better visibility
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 8.tiff"),  # Save as Figure 8.tiff in the 300dpi folder
+  plot = plot,                     # The plot object
+  device = "tiff",                 # Save as TIFF format
+  dpi = 300,                       # 300 DPI resolution
+  width = 8, height = 6,           # Dimensions in inches
+  units = "in"                     # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot)
+```
+
+```{r}
+# KALKULASI TAHUN 2021 DENGAN PERUBAHAN GAMBAR 600 DPI DAN MENGHILANGKAN CAPTION GAMBAR
+# Dengan menampilkan semua emosi
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2021
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2021-01-01") & date <= as.Date("2021-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the plot without the title
+plot <- ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2021-01-01"), as.Date("2021-12-31"), by = "month"), date_labels = "%b") +
+  theme_minimal() +
+  labs(x = "Month", y = "Emotion Count") +  # Labels without title
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for better visibility
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 8.tiff"),  # Save as Figure 8.tiff in the 300dpi folder
+  plot = plot,                     # The plot object
+  device = "tiff",                 # Save as TIFF format
+  dpi = 600,                       # 600 DPI resolution
+  width = 8, height = 6,           # Dimensions in inches
+  units = "in"                     # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot)
+```
+
+
+```{r}
+# Kalkulasi tahun 2021
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2021, exclude 'Ambiguous' category, and group by month
+monthly_emotion_count_2021 <- df_count %>%
+  filter(format(date, "%Y") == "2021", emotion != "ambiguous") %>%
+  mutate(month = format(date, "%Y-%m")) %>%  # Extract year-month format
+  group_by(month) %>%
+  summarise(Total_Emotion_Count = n(), .groups = "drop")
+
+# Print the total emotion count per month for 2021
+print(monthly_emotion_count_2021)
+```
+
+```{r}
+# Kalkulasi tahun 2021
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2021, exclude 'Ambiguous' category, and group by month
+monthly_emotion_count_2021 <- df_count %>%
+  filter(format(date, "%Y") == "2021", emotion != "ambiguous") %>%
+  mutate(month = format(date, "%Y-%m")) %>%  # Extract year-month format
+  group_by(month) %>%
+  summarise(Total_Emotion_Count = n(), .groups = "drop")
+
+# Calculate total emotion count for the entire year 2021
+total_emotion_count_2021 <- sum(monthly_emotion_count_2021$Total_Emotion_Count)
+
+# Add a percentage column with one decimal place
+monthly_emotion_count_2021 <- monthly_emotion_count_2021 %>%
+  mutate(Percentage = round((Total_Emotion_Count / total_emotion_count_2021) * 100, 1))
+
+# Print the percentage of total emotions per month for 2021
+print(monthly_emotion_count_2021)
+```
+
+```{r}
+# Kalkulasi tahun 2021
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2021 and exclude 'Ambiguous' category, then group by emotion
+annual_emotion_count_2021 <- df_count %>%
+  filter(format(date, "%Y") == "2021", emotion != "ambiguous") %>%
+  group_by(emotion) %>%
+  summarise(Emotion_Count = n(), .groups = "drop")
+
+# Calculate the total count of all emotions for the entire year 2021
+total_emotions_2021 <- sum(annual_emotion_count_2021$Emotion_Count)
+
+# Add a percentage column for each emotion based on the annual total
+annual_emotion_count_2021 <- annual_emotion_count_2021 %>%
+  mutate(Percentage = round((Emotion_Count / total_emotions_2021) * 100, 1))
+
+# Print the result
+print(annual_emotion_count_2021)
+```
+
+```{r}
+# FOKUS PADA DATA BULAN JULI DAN DESEMBER 2021
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include July 1–31 and December 1–31 of 2021
+df_filtered_june_december <- df_filtered %>%
+  filter((date >= as.Date("2021-07-01") & date <= as.Date("2021-07-31")) |
+           (date >= as.Date("2021-12-01") & date <= as.Date("2021-12-31")))
+
+# Summarize the count of each selected emotion for June and December
+df_summary <- df_filtered_june_december %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total counts per month for percentage calculation
+df_percentage <- df_summary %>%
+  group_by(month) %>%
+  mutate(total_count = sum(count),
+         percentage = (count / total_count) * 100) %>%
+  ungroup()
+
+# Print the data for verification
+print(df_percentage)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart showing percentages for July and December
+ggplot(df_percentage, aes(x = emotion, y = percentage, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  facet_wrap(~ month, labeller = as_labeller(function(x) format(as.Date(paste0(x, "-01")), "%B"))) +
+  theme_minimal() +
+  labs(title = "Emotion Percentage Distribution for July and December 2021",
+       x = "Emotion",
+       y = "Percentage (%)") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Adjust x-axis labels
+```
+
+```{r}
+# FOKUS PADA DATA BULAN JULI DAN DESEMBER 2021
+# Dengan perubahan gambar 600 dpi dan menghilangkan caption gambar
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include July 1–31 and December 1–31 of 2021
+df_filtered_june_december <- df_filtered %>%
+  filter((date >= as.Date("2021-07-01") & date <= as.Date("2021-07-31")) |
+           (date >= as.Date("2021-12-01") & date <= as.Date("2021-12-31")))
+
+# Summarize the count of each selected emotion for June and December
+df_summary <- df_filtered_june_december %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total counts per month for percentage calculation
+df_percentage <- df_summary %>%
+  group_by(month) %>%
+  mutate(total_count = sum(count),
+         percentage = (count / total_count) * 100) %>%
+  ungroup()
+
+# Print the data for verification
+print(df_percentage)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the plot without the legend
+plot <- ggplot(df_percentage, aes(x = emotion, y = percentage, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  facet_wrap(~ month, labeller = as_labeller(function(x) format(as.Date(paste0(x, "-01")), "%B"))) +
+  theme_minimal() +
+  labs(x = "Emotion", y = "Percentage (%)") +  # Labels without title
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),  # Adjust x-axis labels
+    legend.position = "none"  # Remove the legend
+  )
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 10.tiff"),  # Save as Figure 10.tiff in the 300dpi folder
+  plot = plot,                     # The plot object
+  device = "tiff",                 # Save as TIFF format
+  dpi = 600,                       # 600 DPI resolution
+  width = 8, height = 6,           # Dimensions in inches
+  units = "in"                     # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot)
+```
+
+
+```{r}
+# HANYA TAHUN 2022
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Ensure 'emotion' is a factor
+df_predicted$emotion <- as.factor(df_predicted$emotion)
+
+# Filter out rows where 'emotion' is "ambiguous"
+df_filtered <- df_predicted %>% filter(emotion != "ambiguous")
+
+# Filter data to only include dates from January 1, 2022, to December 31, 2022
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Manually setting the breaks to include only months in 2022
+monthly_breaks <- seq(from = as.Date("2022-01-01"), to = as.Date("2022-12-31"), by = "month")
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Creating the scatter plot with custom colors
+ggplot(df_filtered, aes(x = date, y = emotion, color = emotion)) +
+  geom_point(position = position_jitter(width = 0, height = 0.1), alpha = 0.5) +
+  scale_color_manual(values = colors) +  # Apply the custom colors
+  scale_x_date(limits = as.Date(c("2022-01-01", "2022-12-31")), breaks = monthly_breaks, date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Scatter Plot of Emotions Over Time (Jan-Dec 2022)",
+       x = "Month",
+       y = "Emotion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# KALKULASI TAHUN 2022
+# Dengan menampilkan semua emosi
+
+# Generate Monthly Counts for Selected Emotions in 2022
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2022
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart
+ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2022-01-01"), as.Date("2022-12-31"), by = "month"), date_labels = "%b %Y") +
+  theme_minimal() +
+  labs(title = "Monthly Emotion Count Over Time (Jan-Dec 2022)",
+       x = "Month",
+       y = "Emotion Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# NAMA BULANNYA RATA DAN MENGHILANGKAN TAHUN
+
+# Generate Monthly Counts for Selected Emotions in 2022
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2022
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart
+ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2022-01-01"), as.Date("2022-12-31"), by = "month"), date_labels = "%b") +
+  theme_minimal() +
+  labs(title = "Monthly Emotion Count Over Time (Jan-Dec 2022)",
+       x = "Month",
+       y = "Emotion Count") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for better visibility
+```
+
+```{r}
+# KALKULASI TAHUN 2022 DENGAN PERUBAHAN GAMBAR 600 DPI DAN MENGHILANGKAN CAPTION GAMBAR
+# Dengan menampilkan semua emosi
+
+# Generate Monthly Counts for Selected Emotions in 2022
+
+# Load the libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)  # For date handling
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include dates within the year 2022
+df_filtered <- df_filtered %>%
+  filter(date >= as.Date("2022-01-01") & date <= as.Date("2022-12-31"))
+
+# Summarize the count of each selected emotion by month
+df_summary <- df_filtered %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the plot without the title
+plot <- ggplot(df_summary, aes(x = month, y = count, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  scale_x_date(breaks = seq(as.Date("2022-01-01"), as.Date("2022-12-31"), by = "month"), date_labels = "%b") +
+  theme_minimal() +
+  labs(x = "Month", y = "Emotion Count") +  # Labels without title
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Rotate x-axis labels for better visibility
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 9.tiff"),  # Save as Figure 9.tiff in the 300dpi folder
+  plot = plot,                     # The plot object
+  device = "tiff",                 # Save as TIFF format
+  dpi = 600,                       # 600 DPI resolution
+  width = 8, height = 6,           # Dimensions in inches
+  units = "in"                     # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot)
+```
+
+
+```{r}
+# Kalkulasi tahun 2022
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2022, exclude 'Ambiguous' category, and group by month
+monthly_emotion_count_2022 <- df_count %>%
+  filter(format(date, "%Y") == "2022", emotion != "ambiguous") %>%
+  mutate(month = format(date, "%Y-%m")) %>%  # Extract year-month format
+  group_by(month) %>%
+  summarise(Total_Emotion_Count = n(), .groups = "drop")
+
+# Print the total emotion count per month for 2022
+print(monthly_emotion_count_2022)
+```
+
+```{r}
+# Kalkulasi tahun 2022
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2022, exclude 'Ambiguous' category, and group by month
+monthly_emotion_count_2022 <- df_count %>%
+  filter(format(date, "%Y") == "2022", emotion != "ambiguous") %>%
+  mutate(month = format(date, "%Y-%m")) %>%  # Extract year-month format
+  group_by(month) %>%
+  summarise(Total_Emotion_Count = n(), .groups = "drop")
+
+# Calculate total emotion count for the entire year 2022
+total_emotion_count_2022 <- sum(monthly_emotion_count_2022$Total_Emotion_Count)
+
+# Add a percentage column with one decimal place
+monthly_emotion_count_2022 <- monthly_emotion_count_2022 %>%
+  mutate(Percentage = round((Total_Emotion_Count / total_emotion_count_2022) * 100, 1))
+
+# Print the percentage of total emotions per month for 2022
+print(monthly_emotion_count_2022)
+```
+
+```{r}
+# Kalkulasi tahun 2022
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the year 2022 and exclude 'Ambiguous' category, then group by emotion
+annual_emotion_count_2022 <- df_count %>%
+  filter(format(date, "%Y") == "2022", emotion != "ambiguous") %>%
+  group_by(emotion) %>%
+  summarise(Emotion_Count = n(), .groups = "drop")
+
+# Calculate the total count of all emotions for the entire year 2022
+total_emotions_2022 <- sum(annual_emotion_count_2022$Emotion_Count)
+
+# Add a percentage column for each emotion based on the annual total
+annual_emotion_count_2022 <- annual_emotion_count_2022 %>%
+  mutate(Percentage = round((Emotion_Count / total_emotions_2022) * 100, 1))
+
+# Print the result
+print(annual_emotion_count_2022)
+```
+
+```{r}
+# FOKUS PADA DATA BULAN MEI DAN JUNI 2022
+# Dengan perubahan gambar 600 DPI
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include May and June of 2022
+df_filtered_may_june <- df_filtered %>%
+  filter(date >= as.Date("2022-05-01") & date <= as.Date("2022-06-30"))
+
+# Summarize the count of each selected emotion for May and June
+df_summary <- df_filtered_may_june %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total counts per month for percentage calculation
+df_percentage <- df_summary %>%
+  group_by(month) %>%
+  mutate(total_count = sum(count),
+         percentage = (count / total_count) * 100) %>%
+  ungroup()
+
+# Print the data for verification
+print(df_percentage)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the bar chart showing percentages for May and June
+ggplot(df_percentage, aes(x = emotion, y = percentage, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  facet_wrap(~ month, labeller = as_labeller(function(x) format(as.Date(paste0(x, "-01")), "%B"))) +
+  theme_minimal() +
+  labs(title = "Emotion Percentage Distribution for May and June 2022",
+       x = "Emotion",
+       y = "Percentage (%)") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Adjust x-axis labels
+```
+
+```{r}
+# FOKUS PADA DATA BULAN MEI DAN JUNI 2022
+# Dengan perubahan gambar 600 DPI
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Define the output folder
+output_folder <- "300dpi"
+
+# Ensure the output folder exists
+if (!dir.exists(output_folder)) {
+  dir.create(output_folder)
+}
+
+# Ensure the 'date' column is in Date format
+df_predicted$date <- as.Date(df_predicted$date)
+
+# Filter out rows where 'emotion' is "ambiguous" and keep only selected emotions
+df_filtered <- df_predicted %>%
+  filter(emotion %in% c("anger", "disgust", "fear", "happy", "sadness", "surprise"))
+
+# Filter data to only include May and June of 2022
+df_filtered_may_june <- df_filtered %>%
+  filter(date >= as.Date("2022-05-01") & date <= as.Date("2022-06-30"))
+
+# Summarize the count of each selected emotion for May and June
+df_summary <- df_filtered_may_june %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month, emotion) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total counts per month for percentage calculation
+df_percentage <- df_summary %>%
+  group_by(month) %>%
+  mutate(total_count = sum(count),
+         percentage = (count / total_count) * 100) %>%
+  ungroup()
+
+# Print the data for verification
+print(df_percentage)
+
+# Define colors for each emotion
+colors <- c("anger" = "red", "disgust" = "green", "fear" = "purple", "happy" = "yellow", "sadness" = "blue", "surprise" = "orange")
+
+# Create the plot without the legend
+plot <- ggplot(df_percentage, aes(x = emotion, y = percentage, fill = emotion)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = colors) +  # Apply custom colors for each emotion
+  facet_wrap(~ month, labeller = as_labeller(function(x) format(as.Date(paste0(x, "-01")), "%B"))) +
+  theme_minimal() +
+  labs(x = "Emotion", y = "Percentage (%)") +  # Labels without title
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5),  # Adjust x-axis labels
+    legend.position = "none"  # Remove the legend
+  )
+
+# Save the plot as a TIFF file
+ggsave(
+  filename = file.path(output_folder, "Figure 11.tiff"),  # Save as Figure 11.tiff in the 300dpi folder
+  plot = plot,                     # The plot object
+  device = "tiff",                 # Save as TIFF format
+  dpi = 600,                       # 600 DPI resolution
+  width = 8, height = 6,           # Dimensions in inches
+  units = "in"                     # Specify units
+)
+
+# Optionally print the plot to display it in the R environment
+print(plot)
+```
+
+
+```{r}
+# Kalkulasi tahun 2021 sampai dengan tahun 2022
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the years 2021 and 2022, exclude 'Ambiguous' category, and group by month
+monthly_emotion_count <- df_count %>%
+  filter(format(date, "%Y") %in% c("2021", "2022"), emotion != "ambiguous") %>%
+  mutate(month = format(date, "%Y-%m")) %>%  # Extract year-month format
+  group_by(month) %>%
+  summarise(Total_Emotion_Count = n(), .groups = "drop")
+
+# Calculate the total emotion count for the years 2021 and 2022 combined
+total_emotion_count <- sum(monthly_emotion_count$Total_Emotion_Count)
+
+# Add a percentage column with one decimal place
+monthly_emotion_count <- monthly_emotion_count %>%
+  mutate(Percentage = round((Total_Emotion_Count / total_emotion_count) * 100, 1))
+
+# Print the percentage of total emotions per month for 2021-2022
+print(monthly_emotion_count)
+```
+
+```{r}
+# Kalkulasi tahun 2021 sampai dengan tahun 2022
+
+# Load the necessary library
+library(tidyverse)
+
+# Read the dataset
+df_count <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+
+# Convert date column to Date type if it's not already
+df_count <- df_count %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # replace `date_column` with actual date column name
+
+# Filter for the years 2021 and 2022, exclude 'Ambiguous' category, then group by emotion
+annual_emotion_count <- df_count %>%
+  filter(format(date, "%Y") %in% c("2021", "2022"), emotion != "ambiguous") %>%
+  group_by(emotion) %>%
+  summarise(Emotion_Count = n(), .groups = "drop")
+
+# Calculate the total count of all emotions for the years 2021 and 2022 combined
+total_emotions <- sum(annual_emotion_count$Emotion_Count)
+
+# Add a percentage column for each emotion based on the combined total
+annual_emotion_count <- annual_emotion_count %>%
+  mutate(Percentage = round((Emotion_Count / total_emotions) * 100, 1))
+
+# Print the result
+print(annual_emotion_count)
+```
+
+
+
+
+
+
+
+### BISA DILAKUKAN ####
+
+```{r}
+silentinvasionv4_2021_2022_with_emotions_v14 <- read.csv('silentinvasionv4_2021_2022_with_emotions_v14.csv')
+```
+
+```{r}
+# Load the necessary libraries
+library(udpipe)
+
+# Download Turkish language model
+udpipe_download_model(language = "turkish")
+```
+
+```{r}
+# FIRST CLEANING
+library(tm)
+
+# Create a new dataframe
+df_predicted_removeduplicates <- df_predicted
+
+# Remove duplicate rows based on the text column, keeping the first occurrence
+df_predicted_removeduplicates <- df_predicted_removeduplicates %>% distinct(text, .keep_all = TRUE)
+
+# Remove whitespace
+df_predicted_removeduplicates$text <- stripWhitespace(df_predicted_removeduplicates$text)
+```
+
+
+```{r}
+# UPDATE CODE 1
+# Load the necessary libraries
+#library(udpipe)
+#library(dplyr)
+#library(stringr)
+
+# Create a new dataframe for removing dots and other processing
+#df_predicted_lemmatized <- df_predicted_removedots
+
+# Load the Turkish language model
+#turkish_model <- udpipe_load_model("turkish-imst-ud-2.5-191206.udpipe")
+
+# Create a function to lemmatize words
+#lemmatize_turkish <- function(text, model) {
+#  annotations <- udpipe_annotate(model, x = text)
+#  lemmatized_text <- as.data.frame(annotations)
+#  return(paste(lemmatized_text$lemma, collapse = " "))
+#}
+
+# Lemmatize the words in the text column
+#df_predicted_lemmatized$text <- sapply(df_predicted_lemmatized$text, function(x) {
+#  x <- lemmatize_turkish(x, turkish_model)
+#  return(x)
+#})
+
+# Remove whitespace
+#df_predicted_lemmatized$text <- stripWhitespace(df_predicted_lemmatized$text)
+
+# Delete the leading and trailing spaces
+#df_predicted_lemmatized$text <- trimws(df_predicted_lemmatized$text)
+
+```
+
+```{r}
+library(tm)
+library(dplyr)
+library(stringr)
+
+# Remove stopwords
+turkishstopwords <- readLines("TurkishSentiment-Stopwords.txt")
+df_predicted_removeduplicates$text <- removeWords(df_predicted_removeduplicates$text, turkishstopwords)
+
+# Function to remove punctuations at the beginning and end of each word
+# and punctuations that are preceded and followed by whitespace
+remove_edge_punctuations <- function(text) {
+  # Remove punctuations preceded and followed by whitespace
+  text <- gsub("\\s+[[:punct:]]+\\s+", " ", text)
+  # Remove punctuations at the beginning of each word
+  text <- gsub("\\b[[:punct:]]+", "", text)
+  # Remove punctuations at the end of each word
+  text <- gsub("[[:punct:]]+\\b", "", text)
+  # Additional step: Remove punctuations directly next to a word
+  text <- gsub("\\s+[[:punct:]]+", " ", text)
+  text <- gsub("[[:punct:]]+\\s+", " ", text)
+  # Remove "NA" and numbers
+  text <- gsub("\\bNA\\b", "", text)
+  text <- gsub("\\b\\d+\\b", "", text)
+  return(text)
+}
+
+# Apply the function to the text column
+df_predicted_removeduplicates$text <- sapply(df_predicted_removeduplicates$text, remove_edge_punctuations)
+
+# Remove whitespace
+df_predicted_removeduplicates$text <- stripWhitespace(df_predicted_removeduplicates$text)
+
+# Delete the leading and trailing spaces
+df_predicted_removeduplicates$text <- trimws(df_predicted_removeduplicates$text)
+```
+
+
+```{r}
+# write dftweets dataframe into silentinvation-prediction.csv file
+#write.csv(silentinvasiontest2022, "silentinvasiontest2022NOSTPWRD-v2.csv", row.names = FALSE)
+```
+
+
+```{r}
+# Isolate text from tweets: tweets_text
+df_predicted_removeduplicates_text <- df_predicted_removeduplicates$text
+
+# Create a data frame with the text column
+df_predicted_removeduplicates_text <- data.frame(text = df_predicted_removeduplicates_text)
+
+# write dftweets dataframe into silentinvation-prediction.csv file
+write.csv(df_predicted_removeduplicates_text, "df_predicted_removeduplicates_text-v1.csv", row.names = FALSE)
+
+```
+
+
+```{r}
+# Read csv file
+#silentinvasiontest2022 <- read.csv("silentinvasiontest2022_textNOSTPWRD-v2.csv")
+```
+
+## Most frequent words
+
+```{r}
+# Use the table() function to count the frequency of each word
+word_counts <- table(unlist(strsplit(df_predicted_removeduplicates$text, " ")))
+```
+
+
+```{r}
+# Use the sort() function to sort the word counts in descending order
+sorted_word_counts <- sort(word_counts, decreasing = TRUE)
+
+# Print the most frequent words
+sorted_word_counts[1:30]
+```
+
+
+```{r}
+library(wordcloud)
+
+# Create a word cloud object
+wordcloud(words = names(sorted_word_counts), freq = sorted_word_counts, scale=c(2.5,.5), min.freq = 1, max.words = 30, colors = brewer.pal(8, "Dark2"))
+
+```
+
+```{r}
+library(wordcloud)
+library(RColorBrewer)
+
+# Exclude specific words
+words_to_exclude <- c("kullanıcı", "bağlantı", "adresi", "retweetlemek", "sessiz", "istila", "sessizistila", "istilâ")
+filtered_word_counts <- sorted_word_counts[!names(sorted_word_counts) %in% words_to_exclude]
+
+# Create a word cloud object displaying the filtered words
+wordcloud(words = names(filtered_word_counts), freq = filtered_word_counts, scale = c(2.5, 0.5), 
+          min.freq = 80, max.words = 60, colors = brewer.pal(8, "Dark2"))
+```
+
+From this worldcloud, The most important messeges is:
+türk = as a nationalism 
+mülteci = as a refugees 
+suriyeli = as a origin of the refugees 
+işgal = as a job 
+afgan = as a origin of the refugees  
+
+```{r}
+# Use the sort() function to sort the word counts in descending order
+sorted_word_counts <- sort(filtered_word_counts, decreasing = TRUE)
+
+# Print the most frequent words
+sorted_word_counts[1:30]
+```
+
+```{r}
+# filename: generate_wordclouds_by_emotion.R
+# Purpose: Generate word clouds for each emotion in the dataframe
+
+# Load necessary libraries
+library(dplyr)
+library(wordcloud)
+library(RColorBrewer)
+
+# Function to create word cloud for each emotion
+create_wordcloud <- function(df, emotion) {
+  # Filter the dataframe for the specific emotion
+  emotion_df <- df %>% filter(emotion == !!emotion)
+  
+  # Count word frequencies
+  word_counts <- table(unlist(strsplit(emotion_df$text, " ")))
+  
+  # Sort word counts in descending order
+  sorted_word_counts <- sort(word_counts, decreasing = TRUE)
+  
+  # Exclude specific words
+  words_to_exclude <- c("kullanıcı", "bağlantı", "adresi", "retweetlemek", "sessiz", "istila", "sessizistila", "istilâ")
+  filtered_word_counts <- sorted_word_counts[!names(sorted_word_counts) %in% words_to_exclude]
+  
+  # Create and display the word cloud
+  wordcloud(words = names(filtered_word_counts), freq = filtered_word_counts, scale = c(2.5, 0.5), 
+            min.freq = 60, max.words = 60, colors = brewer.pal(8, "Dark2"))
+  
+  # Add a title to the plot
+  title(main = paste("Word Cloud for Emotion:", emotion))
+}
+
+# Unique emotions in the dataframe excluding 'ambiguous'
+emotions <- unique(df_predicted_removeduplicates$emotion)
+emotions <- emotions[emotions != "ambiguous"]
+
+# Create word clouds for each emotion
+par(mfrow = c(2, 3))  # Adjust the layout to fit multiple plots
+for (emotion in emotions) {
+  create_wordcloud(df_predicted_removeduplicates, emotion)
+}
+```
+
+```{r}
+# filename: top_words_by_emotion.R
+# Purpose: Display the 10 most frequent words in descending order for each emotion
+
+# Load necessary libraries
+library(dplyr)
+
+# Function to get top 10 words for each emotion
+get_top_words <- function(df, emotion) {
+  # Filter the dataframe for the specific emotion
+  emotion_df <- df %>% filter(emotion == !!emotion)
+  
+  # Count word frequencies
+  word_counts <- table(unlist(strsplit(emotion_df$text, " ")))
+  
+  # Sort word counts in descending order
+  sorted_word_counts <- sort(word_counts, decreasing = TRUE)
+  
+  # Exclude specific words
+  words_to_exclude <- c("kullanıcı", "bağlantı", "adresi", "retweetlemek", "sessiz", "istila", "sessizistila", "istilâ", "kısa", "bi")
+  filtered_word_counts <- sorted_word_counts[!names(sorted_word_counts) %in% words_to_exclude]
+  
+  # Get top 10 words
+  top_words <- head(filtered_word_counts, 10)
+  
+  return(top_words)
+}
+
+# Unique emotions in the dataframe excluding 'ambiguous'
+emotions <- unique(df_predicted_removeduplicates$emotion)
+emotions <- emotions[emotions != "ambiguous"]
+
+# Display top 10 words for each emotion
+for (emotion in emotions) {
+  cat("Top 10 words for emotion:", emotion, "\n")
+  print(get_top_words(df_predicted_removeduplicates, emotion))
+  cat("\n")
+}
+
+```
+
+#From the sadness emotion, the important words are:
+mülteci = related to refugee      
+Türk = related to nation, patriotism
+ülke = related to nation, patriotism 
+#Turkiye's situation regarding refugees
+
+#From the surprise emotion, the important words are:
+gümbür = exploded
+Türk = related to country
+filmi = film
+#Sessiz Istila's short film exploded in Turkiye
+
+#From the fear emotion, the important words are:
+hande = related to the name of the film producer
+karacasu = related to the name of the film producer
+gözaltına = related to punished, 
+#Short film maker Sessiz Istila sentenced
+
+#From the anger emotion, the important words are:
+Türk = related to nation, patriotism
+mülteci = related to refugees
+işgal = related to jobs
+#Turkiye has problems with refugess and employment
+
+#From the happy emotion, the important words are:
+güzel = related to excelent
+hande = related to the name of the film producer
+filmi = film
+#Appreciation to the producer who made the short film Sessix Istilla
+
+#From the disgust emotion, the important words are:
+
+
+```{r}
+# Bigram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each bigram and one column for each word
+bigrams <- df_predicted_removeduplicates %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+# Count the number of occurrences of each bigram
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+```
+
+
+```{r}
+# Head
+bigram_counts$bigram[1:40]
+```
+
+
+From bigram analysis. The concern of the narative is in economic sector. On trigram, they add security issue, immigrants tried to rob the villages.
+
+```{r}
+# filename: count_bigrams_by_emotion.R
+# Purpose: Count bigrams for each emotion in the dataframe
+
+# Load necessary libraries
+library(dplyr)
+library(tidytext)
+
+# Function to count bigrams for each emotion
+count_bigrams <- function(df, emotion) {
+  # Filter the dataframe for the specific emotion
+  emotion_df <- df %>% filter(emotion == !!emotion)
+  
+  # Create bigrams
+  bigrams <- emotion_df %>%
+    unnest_tokens(bigram, text, token = "ngrams", n = 2)
+  
+  # Count the number of occurrences of each bigram
+  bigram_counts <- bigrams %>%
+    count(bigram, sort = TRUE)
+  
+  # Exclude specific words
+  words_to_exclude <- c("kullanıcı", "bağlantı", "adresi", "retweetlemek", "sessiz", "istila", "sessizistila", "istilâ")
+  bigrams_to_exclude <- outer(words_to_exclude, words_to_exclude, paste)
+  bigrams_to_exclude <- as.vector(bigrams_to_exclude)
+  
+  # Filter out excluded bigrams
+  filtered_bigram_counts <- bigram_counts %>%
+    filter(!bigram %in% bigrams_to_exclude)
+  
+  return(filtered_bigram_counts)
+}
+
+# Unique emotions in the dataframe excluding 'ambiguous'
+emotions <- unique(df_predicted_removeduplicates$emotion)
+emotions <- emotions[emotions != "ambiguous"]
+
+# Count bigrams for each emotion and print the top 40 bigrams
+for (emotion in emotions) {
+  cat("\nTop Bigrams for Emotion:", emotion, "\n")
+  bigram_counts <- count_bigrams(df_predicted_removeduplicates, emotion)
+  print(bigram_counts$bigram[1:10])
+}
+```
+
+#From the sadness emotion, the important words are:
+istila memleketimizde = related to invasion in our country    
+memleketimizde mülteci = related to refugee in our country
+#Turkiye's situation regarding refugees
+
+#From the surprise emotion, the important words are:
+istila filmi = invasion movie
+#Sessiz Istila's short film/ Invasion movie
+
+#From the fear emotion, the important words are:
+karacasu gözaltına = related to karacasu detained
+#Short film maker Sessiz Istila detained
+
+#From the anger emotion, the important words are:
+bot hesap = related to bot account
+fetö yanlısı = related to FETO organisation
+pkk yanlısı = related to PKK organisation
+#The three bigrams has a same weight
+
+#From the happy emotion, the important words are:
+güzel = related to excelent
+hande = related to the name of the film producer
+filmi = film
+#Appreciation to the producer who made the short film Sessix Istilla
+
+```{r}
+# Trigram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each trigram and one column for each word
+trigram <- df_predicted_removeduplicates %>%
+  unnest_tokens(trigram, text, token = "ngrams", n = 3)
+
+# Count the number of occurrences of each trigram
+trigram_counts <- trigram %>%
+  count(trigram, sort = TRUE)
+```
+
+
+```{r}
+# Head
+trigram_counts$trigram[1:40]
+```
+
+
+```{r}
+# 4-gram
+# Load the tidytext package
+library(dplyr)
+library(tidytext)
+
+# Create a data frame with one row for each bigram and one column for each word
+fourgram <- df_predicted_removeduplicates %>%
+  unnest_tokens(fourgram, text, token = "ngrams", n = 4)
+
+# Count the number of occurrences of each bigram
+fourgram_counts <- fourgram %>%
+  count(fourgram, sort = TRUE)
+```
+
+
+```{r}
+# Head
+fourgram_counts$fourgram[1:40]
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### JANGAN DILAKUKAN DULU ####
+### JANGAN DILAKUKAN DULU ####
+### JANGAN DILAKUKAN DULU ####
+
+## Calculate TF-IDF 
+
+```{r}
+# Load necessary libraries
+library(tidytext)
+library(dplyr)
+
+# Tokenize the text data
+tokens <- df_predicted_lemmatized %>%
+  mutate(doc_id = row_number()) %>%
+  unnest_tokens(word, text)
+
+# Calculate term frequency (TF)
+term_frequency <- tokens %>%
+  count(doc_id, word, sort = TRUE)
+
+# Calculate document frequency (DF)
+doc_frequency <- term_frequency %>%
+  group_by(word) %>%
+  summarise(docs = n_distinct(doc_id))
+
+# Calculate inverse document frequency (IDF)
+inverse_doc_frequency <- doc_frequency %>%
+  mutate(idf = log(nrow(term_frequency) / docs))
+
+# Calculate TF-IDF
+tf_idf <- term_frequency %>%
+  left_join(inverse_doc_frequency, by = "word") %>%
+  mutate(tf_idf = n * idf)
+
+# View the results
+head(tf_idf)
+
+```
+
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+# Set the number of top words to visualize
+top_n <- 30
+
+# Calculate average TF-IDF scores for each word
+average_tf_idf <- tf_idf %>%
+  group_by(word) %>%
+  summarize(avg_tf_idf = mean(tf_idf)) %>%
+  arrange(desc(avg_tf_idf))
+
+# Select the top N words with the highest average TF-IDF scores
+top_words <- head(average_tf_idf, top_n)
+
+# Create a bar plot
+ggplot(top_words, aes(x = reorder(word, -avg_tf_idf), y = avg_tf_idf)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Top words by average TF-IDF",
+       x = "Word",
+       y = "Average TF-IDF") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r}
+# View the structure of tweets
+str(df_predicted_lemmatized)
+```
+
+
+```{r}
+# Print out the number of rows in tweets
+nrow(df_predicted_lemmatized)
+```
+
+
+```{r}
+# Isolate text from tweets: tweets_text
+df_predicted_lemmatized_text <- df_predicted_lemmatized$text
+str(df_predicted_lemmatized_text)
+```
+
+
+```{r}
+library(tm)
+df_predicted_lemmatized_source <- VectorSource(df_predicted_lemmatized_text)
+```
+
+
+```{r}
+# Make a volatile corpus: tweets_corpus
+df_predicted_lemmatized_corpus <- VCorpus(df_predicted_lemmatized_source)
+
+# Print out the tweets_corpus
+df_predicted_lemmatized_corpus
+```
+
+
+```{r}
+# Print data on the 15th tweet in tweets_corpus
+df_predicted_lemmatized_corpus[[15]]
+```
+
+
+```{r}
+# Print the content of the 15th tweet in tweets_corpus
+df_predicted_lemmatized_corpus[[15]][1]
+```
+
+
+```{r}
+str(df_predicted_lemmatized_corpus[[15]])
+```
+
+
+```{r}
+# Convert to corpus.prep
+corpus.prep <- df_predicted_lemmatized_corpus
+```
+
+
+```{r}
+## the output is truncated here to save space
+content(corpus.prep[[1501]]) # Essay No. 1501
+```
+
+
+```{r}
+### Section 5.1.2: Document-Term Matrix
+
+dtm <- DocumentTermMatrix(corpus.prep)
+dtm
+```
+
+
+```{r}
+inspect(dtm[1:5, 1:8])
+```
+
+
+```{r}
+dtm.mat <- as.matrix(dtm)
+```
+
+
+```{r}
+library(wordcloud)
+```
+
+
+```{r}
+wordcloud(colnames(dtm.mat), dtm.mat[12, ], max.words = 20, scale=c(2.5,.5), min.freq = 40, colors = brewer.pal(8, "Dark2"))  # essay No. 12
+wordcloud(colnames(dtm.mat), dtm.mat[24, ], max.words = 20, scale=c(1.5,.5), min.freq = 40, colors = brewer.pal(8, "Dark2"))  # essay No. 24
+wordcloud(colnames(dtm.mat), dtm.mat[1497, ], max.words = 20, scale=c(1.5,.5), min.freq = 40, colors = brewer.pal(8, "Dark2"))  # essay No. 24
+```
+
+
+```{r}
+dtm.tfidf <- weightTfIdf(dtm) # tf-idf calculation
+```
+
+
+```{r}
+dtm.tfidf.mat <- as.matrix(dtm.tfidf)  # convert to matrix
+```
+
+
+```{r}
+## 10 most important words for Paper No. 12
+head(sort(dtm.tfidf.mat[12, ], decreasing = TRUE), n = 10)
+
+## 10 most important words for Paper No. 24
+head(sort(dtm.tfidf.mat[24, ], decreasing = TRUE), n = 10)
+
+## 10 most important words for Paper No. 1497
+head(sort(dtm.tfidf.mat[1497, ], decreasing = TRUE), n = 10)
+```
+
+
+```{r}
+k <- 10  # number of clusters
+## subset The Federalist papers written by Hamilton
+#hamilton <- c(1, 6:9, 11:13, 15:17, 21:36, 59:61, 65:85)
+#dtm.tfidf.hamilton <- dtm.tfidf.mat[hamilton, ]
+hamilton <- c(6:18, 33:181, 1073:1496, 1497:1502)
+dtm.tfidf.hamilton <- dtm.tfidf.mat[hamilton, ]
+```
+
+
+```{r}
+# Check dimensions of dtm.tfidf.mat
+dim(dtm.tfidf.mat)
+```
+
+
+```{r}
+## run k-means
+km.out <- kmeans(dtm.tfidf.hamilton, centers = k)
+km.out$iter # check the convergence; number of iterations may vary
+
+## label each centroid with the corresponding term
+colnames(km.out$centers) <- colnames(dtm.tfidf.hamilton)
+
+for (i in 1:k) { # loop for each cluster
+    cat("CLUSTER", i, "\n")
+    cat("Top 10 words:\n") # 10 most important terms at the centroid
+    print(head(sort(km.out$centers[i, ], decreasing = TRUE), n = 10))
+    cat("\n")
+    cat("Federalist Papers classified: \n") # extract essays classified
+    cat(rownames(dtm.tfidf.hamilton)[km.out$cluster == i])
+    cat("\n")
+    cat("\n")
+}
+```
+
+### JANGAN DILAKUKAN DULU ####
+### JANGAN DILAKUKAN DULU ####
+### JANGAN DILAKUKAN DULU ####
+### JANGAN DILAKUKAN DULU ####
+
+
+
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
